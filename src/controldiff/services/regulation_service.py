@@ -5,9 +5,12 @@ import json
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from controldiff.agents.nodes.control_mapper import map_obligation_to_controls
 from controldiff.agents.nodes.obligation_extractor import extract_obligations
+from controldiff.agents.schemas import Obligation
 from controldiff.domain.enums import RunStatus
-from controldiff.domain.models import ObligationRecord, RegulationDocument, WorkflowRun
+from controldiff.domain.models import MappingRecord, ObligationRecord, RegulationDocument, WorkflowRun
+from controldiff.retrieval.control_search import retrieve_candidate_controls
 
 
 def create_regulation_run(
@@ -38,6 +41,7 @@ def create_regulation_run(
     session.refresh(run)
 
     obligations = extract_obligations(body_text, source)
+    stored_obligations: list[Obligation] = []
 
     for obligation in obligations:
         session.add(
@@ -53,6 +57,37 @@ def create_regulation_run(
                 ),
             )
         )
+        stored_obligations.append(obligation)
+
+    session.commit()
+
+    total_confidence = 0.0
+    total_mappings = 0
+
+    for obligation in stored_obligations:
+        candidates = retrieve_candidate_controls(session, obligation.text)
+        mappings = map_obligation_to_controls(obligation, candidates)
+
+        for mapping in mappings:
+            session.add(
+                MappingRecord(
+                    run_id=run.id,
+                    obligation_id=mapping.obligation_id,
+                    control_id=mapping.control_id,
+                    impact=mapping.impact,
+                    confidence=mapping.confidence,
+                    rationale=mapping.rationale,
+                    citations_json=json.dumps(
+                        [citation.model_dump() for citation in mapping.citations]
+                    ),
+                    needs_review=False,
+                )
+            )
+            total_confidence += mapping.confidence
+            total_mappings += 1
+
+    if total_mappings > 0:
+        run.confidence = total_confidence / total_mappings
 
     run.status = RunStatus.COMPLETED.value
     session.add(run)
@@ -71,6 +106,7 @@ def list_runs(session: Session) -> list[WorkflowRun]:
         .options(
             selectinload(WorkflowRun.regulation),
             selectinload(WorkflowRun.obligations),
+            selectinload(WorkflowRun.mappings),
         )
         .order_by(WorkflowRun.created_at.desc())
     )
@@ -83,6 +119,7 @@ def get_run(session: Session, run_id: str) -> WorkflowRun | None:
         .options(
             selectinload(WorkflowRun.regulation),
             selectinload(WorkflowRun.obligations),
+            selectinload(WorkflowRun.mappings),
         )
         .where(WorkflowRun.id == run_id)
     )

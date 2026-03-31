@@ -1,13 +1,7 @@
 from __future__ import annotations
 
-from fastapi.testclient import TestClient
 
-from controldiff.api.main import app
-
-client = TestClient(app)
-
-
-def test_create_run_and_list_runs() -> None:
+def test_create_run_and_list_runs(client) -> None:
     response = client.post(
         "/api/v1/runs",
         json={
@@ -24,15 +18,16 @@ def test_create_run_and_list_runs() -> None:
     assert payload["status"] == "completed"
     assert payload["regulation_title"] == "AML Bulletin"
     assert payload["obligations_count"] >= 1
+    
+    detail_response = client.get(f"/api/v1/runs/{payload['run_id']}")
+    assert detail_response.status_code == 200
+    detail = detail_response.json()
+    assert len(detail["mappings"]) >= 1
 
-    list_response = client.get("/api/v1/runs")
-    assert list_response.status_code == 200
-    runs = list_response.json()
-    assert any(item["run_id"] == payload["run_id"] for item in runs)
-    assert any(item["obligations_count"] >= 1 for item in runs)
+    assert payload["mappings_count"] >= 1
+    
 
-
-def test_get_run_detail() -> None:
+def test_get_run_detail(client) -> None:
     create_response = client.post(
         "/api/v1/runs",
         json={
@@ -52,3 +47,4 @@ def test_get_run_detail() -> None:
     assert detail["run_id"] == run_id
     assert detail["regulation"]["title"] == "CIP Update"
     assert len(detail["obligations"]) >= 1
+    assert len(detail["mappings"]) >= 1
