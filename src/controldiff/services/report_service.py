@@ -4,22 +4,19 @@ import json
 
 from sqlalchemy.orm import Session
 
-from controldiff.domain.models import MappingRecord, ObligationRecord, WorkflowRun
+from controldiff.domain.models import MappingRecord, ObligationRecord, ReviewDecision, WorkflowRun
 
 
 def build_report(session: Session, run: WorkflowRun) -> dict:
-    obligations = (
-        session.query(ObligationRecord)
-        .filter(ObligationRecord.run_id == run.id)
+    obligations = session.query(ObligationRecord).filter(ObligationRecord.run_id == run.id).all()
+    mappings = session.query(MappingRecord).filter(MappingRecord.run_id == run.id).all()
+    reviews = (
+        session.query(ReviewDecision)
+        .filter(ReviewDecision.run_id == run.id)
+        .order_by(ReviewDecision.created_at.asc())
         .all()
     )
-    mappings = (
-        session.query(MappingRecord)
-        .filter(MappingRecord.run_id == run.id)
-        .all()
-    )
-
-    payload = json.loads(run.payload_json)
+    payload = json.loads(run.payload_json or "{}")
 
     return {
         "run_id": run.id,
@@ -52,6 +49,18 @@ def build_report(session: Session, run: WorkflowRun) -> dict:
                 "needs_review": item.needs_review,
             }
             for item in mappings
+        ],
+        "diffs": payload.get("diffs", []),
+        "replay_summary": payload.get("replay_summary", {}),
+        "critic_notes": payload.get("critic_notes", []),
+        "reviews": [
+            {
+                "reviewer": item.reviewer,
+                "decision": item.decision,
+                "notes": item.notes,
+                "created_at": item.created_at.isoformat(),
+            }
+            for item in reviews
         ],
         "payload": payload,
     }

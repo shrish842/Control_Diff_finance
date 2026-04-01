@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -9,23 +9,23 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from controldiff.db.base import Base
 
 
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
 class TimestampMixin:
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
     )
 
 
 class RegulationDocument(TimestampMixin, Base):
     __tablename__ = "regulation_documents"
 
-    id: Mapped[str] = mapped_column(
-        String(36),
-        primary_key=True,
-        default=lambda: str(uuid.uuid4()),
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     title: Mapped[str] = mapped_column(String(255))
     source: Mapped[str] = mapped_column(String(255))
     body_text: Mapped[str] = mapped_column(Text)
@@ -62,11 +62,7 @@ class PolicyVersion(TimestampMixin, Base):
 class WorkflowRun(TimestampMixin, Base):
     __tablename__ = "workflow_runs"
 
-    id: Mapped[str] = mapped_column(
-        String(36),
-        primary_key=True,
-        default=lambda: str(uuid.uuid4()),
-    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     regulation_id: Mapped[str] = mapped_column(ForeignKey("regulation_documents.id"))
     status: Mapped[str] = mapped_column(String(64), default="pending")
     confidence: Mapped[float] = mapped_column(Float, default=0.0)

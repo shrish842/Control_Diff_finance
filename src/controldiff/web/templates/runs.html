@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+    <div>
+        <p class="eyebrow">Operational Demo</p>
+        <h1>ControlDiff Analyst Desk</h1>
+        <p class="hero-copy">
+            Review regulatory updates, inspect mapped controls, and approve workflow runs without leaving the browser.
+        </p>
+    </div>
+
+    <div class="summary-grid">
+        <article class="summary-card">
+            <span>Total Runs</span>
+            <strong>{{ summary.total_runs }}</strong>
+        </article>
+        <article class="summary-card">
+            <span>Needs Review</span>
+            <strong>{{ summary.review_required }}</strong>
+        </article>
+        <article class="summary-card">
+            <span>Approved</span>
+            <strong>{{ summary.approved }}</strong>
+        </article>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="panel-header">
+        <h2>Recent Workflow Runs</h2>
+        <span class="panel-note">Server-rendered demo UI, no OpenAI key required</span>
+    </div>
+
+    {% if runs %}
+    <div class="run-grid">
+        {% for run in runs %}
+        <a class="run-card" href="/ui/runs/{{ run.id }}">
+            <div class="run-card-top">
+                <div>
+                    <h3>{{ run.title }}</h3>
+                    <p>{{ run.source }}</p>
+                </div>
+                <span class="status-pill status-{{ run.status|replace('_', '-') }}">
+                    {{ run.status|replace('_', ' ') }}
+                </span>
+            </div>
+
+            <dl class="metric-row">
+                <div>
+                    <dt>Confidence</dt>
+                    <dd>{{ "%.2f"|format(run.confidence) }}</dd>
+                </div>
+                <div>
+                    <dt>Obligations</dt>
+                    <dd>{{ run.obligations_count }}</dd>
+                </div>
+                <div>
+                    <dt>Mappings</dt>
+                    <dd>{{ run.mappings_count }}</dd>
+                </div>
+            </dl>
+
+            {% if run.review_required %}
+            <span class="review-flag">Human review requested</span>
+            {% endif %}
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <h3>No runs yet</h3>
+        <p>Create one with the API and it will appear here instantly.</p>
+        <code>POST /api/v1/runs</code>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

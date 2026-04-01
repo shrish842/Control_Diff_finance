@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="detail-hero panel">
+    <div class="detail-title">
+        <p class="eyebrow">Run Detail</p>
+        <h1>{{ regulation.title }}</h1>
+        <p>{{ regulation.source }}</p>
+    </div>
+
+    <div class="hero-stats">
+        <span class="status-pill status-{{ run.status|replace('_', '-') }}">
+            {{ run.status|replace('_', ' ') }}
+        </span>
+        <span class="meta-chip">Confidence {{ "%.2f"|format(run.confidence) }}</span>
+        {% if run.review_required %}
+        <span class="meta-chip warning">Review required</span>
+        {% endif %}
+        <a class="meta-chip link-chip" href="/api/v1/runs/{{ run.id }}/report">JSON Report</a>
+    </div>
+</section>
+
+<div class="detail-layout">
+    <section class="main-column">
+        <article class="panel">
+            <div class="panel-header">
+                <h2>Regulation Text</h2>
+            </div>
+            <div class="prose-block">{{ regulation.body_text }}</div>
+        </article>
+
+        <article class="panel">
+            <div class="panel-header">
+                <h2>Extracted Obligations</h2>
+            </div>
+            <div class="stack-list">
+                {% for obligation in obligations %}
+                <div class="stack-card">
+                    <div class="stack-card-top">
+                        <strong>{{ obligation.obligation_id }}</strong>
+                        <span class="meta-chip">{{ obligation.category }}</span>
+                    </div>
+                    <p>{{ obligation.text }}</p>
+                    <small>Severity: {{ obligation.severity }}</small>
+                </div>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="panel">
+            <div class="panel-header">
+                <h2>Control Mappings</h2>
+            </div>
+            <div class="stack-list">
+                {% for mapping in mappings %}
+                <div class="stack-card">
+                    <div class="stack-card-top">
+                        <strong>{{ mapping.obligation_id }} → Control {{ mapping.control_id }}</strong>
+                        <span class="impact-pill impact-{{ mapping.impact|lower }}">{{ mapping.impact }}</span>
+                    </div>
+                    <p>{{ mapping.rationale }}</p>
+                    <small>Confidence: {{ "%.2f"|format(mapping.confidence) }}</small>
+                </div>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="panel">
+            <div class="panel-header">
+                <h2>Generated Report</h2>
+            </div>
+            <div class="prose-block">{{ run.final_report or "No final report text was generated." }}</div>
+        </article>
+    </section>
+
+    <aside class="side-column">
+        <article class="panel">
+            <div class="panel-header">
+                <h2>Critic Notes</h2>
+            </div>
+            <ul class="note-list">
+                {% if critic_notes %}
+                    {% for note in critic_notes %}
+                    <li>{{ note }}</li>
+                    {% endfor %}
+                {% else %}
+                    <li>No critic warnings.</li>
+                {% endif %}
+            </ul>
+        </article>
+
+        <article class="panel">
+            <div class="panel-header">
+                <h2>Replay Summary</h2>
+            </div>
+            <dl class="key-value">
+                {% for key, value in replay_summary.items() %}
+                <div>
+                    <dt>{{ key|replace('_', ' ') }}</dt>
+                    <dd>{{ value }}</dd>
+                </div>
+                {% else %}
+                <div>
+                    <dt>Replay</dt>
+                    <dd>No replay summary available</dd>
+                </div>
+                {% endfor %}
+            </dl>
+        </article>
+
+        <article class="panel">
+            <div class="panel-header">
+                <h2>Policy Diffs</h2>
+            </div>
+            <div class="stack-list compact">
+                {% for diff in diffs %}
+                <div class="stack-card compact-card">
+                    <strong>{{ diff.control_code if diff.control_code is defined else "Control Diff" }}</strong>
+                    <p>{{ diff.summary if diff.summary is defined else diff }}</p>
+                </div>
+                {% else %}
+                <div class="stack-card compact-card">
+                    <p>No diff artifacts available yet.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="panel">
+            <div class="panel-header">
+                <h2>Analyst Review</h2>
+            </div>
+
+            {% if can_review %}
+            <form class="review-form" method="post" action="/ui/runs/{{ run.id }}/review">
+                <label>
+                    Reviewer
+                    <input type="text" name="reviewer" placeholder="Shrish" required>
+                </label>
+
+                <label>
+                    Notes
+                    <textarea name="notes" rows="4" placeholder="Why you approved or rejected this run"></textarea>
+                </label>
+
+                <div class="form-actions">
+                    <button type="submit" name="decision" value="approve" class="btn btn-primary">Approve</button>
+                    <button type="submit" name="decision" value="reject" class="btn btn-secondary">Reject</button>
+                </div>
+            </form>
+            {% else %}
+            <p class="muted-copy">This run already has a final analyst decision.</p>
+            {% endif %}
+
+            <div class="review-history">
+                <h3>Review History</h3>
+                {% for review in reviews %}
+                <div class="review-entry">
+                    <strong>{{ review.decision }}</strong>
+                    <p>{{ review.notes }}</p>
+                    <small>{{ review.reviewer }} · {{ review.created_at }}</small>
+                </div>
+                {% else %}
+                <p class="muted-copy">No analyst review recorded yet.</p>
+                {% endfor %}
+            </div>
+        </article>
+    </aside>
+</div>
+{% endblock %}

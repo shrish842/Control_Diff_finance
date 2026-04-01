@@ -124,3 +124,55 @@ def get_run(session: Session, run_id: str) -> WorkflowRun | None:
         .where(WorkflowRun.id == run_id)
     )
     return session.scalars(statement).first()
+
+def _persist_run_outputs(
+    session: Session,
+    regulation_id: str,
+    run: WorkflowRun,
+    final_state: ControlDiffState,
+) -> None:
+    obligations = [
+        Obligation.model_validate(item)
+        for item in final_state.get("obligations", [])
+    ]
+    mappings = [
+        ControlMapping.model_validate(item)
+        for item in final_state.get("mappings", [])
+    ]
+
+    for obligation in obligations:
+        session.add(
+            ObligationRecord(
+                obligation_id=obligation.obligation_id,
+                run_id=run.id,
+                regulation_id=regulation_id,
+                text=obligation.text,
+                category=obligation.category,
+                severity=obligation.severity,
+                citations_json=json.dumps(
+                    [citation.model_dump() for citation in obligation.citations]
+                ),
+            )
+        )
+
+    for mapping in mappings:
+        session.add(
+            MappingRecord(
+                run_id=run.id,
+                obligation_id=mapping.obligation_id,
+                control_id=mapping.control_id,
+                impact=mapping.impact,
+                confidence=mapping.confidence,
+                rationale=mapping.rationale,
+                citations_json=json.dumps(
+                    [citation.model_dump() for citation in mapping.citations]
+                ),
+                needs_review=False,
+            )
+        )
+
+    run.confidence = float(final_state.get("confidence", 0.0))
+    run.status = str(final_state.get("status", RunStatus.COMPLETED.value))
+
+    session.add(run)
+    session.commit()
